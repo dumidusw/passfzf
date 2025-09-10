@@ -1,0 +1,19 @@
+# completions/_passfzf
+
+#compdef passfzf
+
+local context state line
+
+_passfzf() {
+  _arguments -C \
+    '1: :->noargs' \
+    && return 0
+
+  case $state in
+    noargs)
+      _message "🚀 Launch interactive fuzzy password manager (no arguments needed)"
+    ;;
+  esac
+}
+
+_passfzf "$@"
