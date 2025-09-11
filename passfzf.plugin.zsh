@@ -3,7 +3,6 @@
 # passfzf - fzf-powered interface for pass (password-store)
 # Author: Dumidu Wijayasekara - github.com/dumidusw
 # License: MIT
-
 passfzf() {
     local selection
     local pass_dir="${PASSWORD_STORE_DIR:-$HOME/.password-store}"
@@ -25,7 +24,7 @@ passfzf() {
             --reverse \
             --prompt='🔑 Pass> ' \
             --header='ENTER: copy • Ctrl+Y: copy+stay • Ctrl+E: edit • Ctrl+D: delete • + Add new' \
-            --preview='if [[ {} == *"Add New Password" ]]; then echo "✨ Create a new password entry"; else pass show {+2} | head -10; fi' \
+--preview='if [[ {} == *"Add New Password" ]]; then echo "✨ Create a new password entry"; else pass show {+2} | sed "1s/.*/🔐 [PASSWORD HIDDEN — Press ENTER to copy]/" | head -10; fi' \
             --preview-window='right:50%' \
             --bind 'ctrl-y:execute-silent( ( pass show -c {+2} &>/dev/null && command -v notify-send >/dev/null && notify-send "🔐 Password Copied" "{+2}" -t 1500 -u low ) )+refresh-preview+clear-screen' \
             --bind "ctrl-e:execute(EDITOR=nvim pass edit {+2})+reload($reload_cmd)" \
@@ -66,9 +65,16 @@ passfzf() {
         # Get directories
         local -a dirs
         dirs=("")
+        # Collect all subdirectories, excluding hidden ones (basename starts with '.')
+        local -a dirs
+        dirs=("")
         while IFS= read -r -d '' dir; do
             [[ -n "$dir" ]] && dirs+=("$dir")
-		done < <(find "$pass_dir" -type d -not -path "$pass_dir" -not -name ".*" -printf '%P\0' 2>/dev/null)
+        done < <(
+            find "$pass_dir" -type d -not -path "$pass_dir" -printf '%P\0' 2>/dev/null |
+            grep -zv '^[^/]*/\.' |
+            grep -zv '^\.'
+        )
 
         # Show picker
         local selected_dir
