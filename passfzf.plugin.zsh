@@ -1,7 +1,7 @@
 #!/usr/bin/env zsh
 
 # passfzf - fzf-powered interface for pass (password-store)
-# Author: [Dumidu/GitHub]
+# Author: Dumidu Wijayasekara - github.com/dumidusw
 # License: MIT
 
 passfzf() {
@@ -68,7 +68,7 @@ passfzf() {
         dirs=("")
         while IFS= read -r -d '' dir; do
             [[ -n "$dir" ]] && dirs+=("$dir")
-        done < <(find "$pass_dir" -type d -not -path "$pass_dir" -printf '%P\0' 2>/dev/null)
+done < <(find "$pass_dir" -type d -not -path "$pass_dir" -not -path "*/\.*" -printf '%P\0' 2>/dev/null)
 
         # Show picker
         local selected_dir
