@@ -68,7 +68,7 @@ passfzf() {
         dirs=("")
         while IFS= read -r -d '' dir; do
             [[ -n "$dir" ]] && dirs+=("$dir")
-done < <(find "$pass_dir" -type d -not -path "$pass_dir" -not -path "*/\.*" -printf '%P\0' 2>/dev/null)
+		done < <(find "$pass_dir" -type d -not -path "$pass_dir" -not -name ".*" -printf '%P\0' 2>/dev/null)
 
         # Show picker
         local selected_dir
