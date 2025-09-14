@@ -1,0 +1,213 @@
+# Main passfzf function
+# This file should be saved as functions/passfzf (no extension)
+
+passfzf() {
+    # Clear screen for clean UI
+    clear
+    exec < /dev/tty  # Ensure stdin is connected to terminal for fzf interactivity
+    local selection
+    local pass_dir="${PASSWORD_STORE_DIR:-$HOME/.password-store}"
+
+    # Cache all entries once for performance
+    local -a all_entries=()
+    local -A is_category=()
+    local -A seen_categories=()
+    
+    # Single find call to get all entries and build category map
+    while IFS= read -r -d '' entry; do
+        local clean_entry="${entry%.gpg}"
+        all_entries+=("$clean_entry")
+        
+        if [[ "$clean_entry" == */* ]]; then
+            local category="${clean_entry%%/*}"
+            if [[ -z "${seen_categories[$category]}" ]]; then
+                is_category[$category]=1
+                seen_categories[$category]=1
+            fi
+        else
+            is_category[$clean_entry]=0
+        fi
+    done < <(find "$pass_dir" -name "*.gpg" -type f -printf '%P\0' 2>/dev/null)
+
+    # Count totals (initial values for the first header draw)
+    local total_entries=${#all_entries[@]}
+    local category_count=${#seen_categories[@]}
+    local min_height=15
+    local max_height=25
+    local calculated_height=$((category_count + 5))  # +5 for header, prompt, etc.
+    [[ $calculated_height -lt $min_height ]] && calculated_height=$min_height
+    [[ $calculated_height -gt $max_height ]] && calculated_height=$max_height
+
+    # Dynamic header command (used with transform-header)
+    local dynamic_header_cmd='
+    total_entries=$(find "'"$pass_dir"'" -name "*.gpg" -type f 2>/dev/null | wc -l)
+    category_count=$(find "'"$pass_dir"'" -name "*.gpg" -printf "%P\n" 2>/dev/null | sed "s/\.gpg$//" | sed "s|/.*||" | sort -u | wc -l)
+    echo "$category_count categories • $total_entries total entries
+ENTER: copy • Ctrl+Y: copy+stay • Ctrl+E: edit • Ctrl+D: delete • + Add new"'
+
+    # Smart reload (only the list, not the header)
+    local smart_reload_cmd='
+    if [[ -n "$FZF_QUERY" ]]; then
+        find "'"$pass_dir"'" -name "*.gpg" -printf "%P\n" 2>/dev/null \
+          | sed "s/\.gpg$//" \
+          | sort \
+          | sed "s/^/🔐 /"
+    else
+        echo "✨ + Add New Password"
+        find "'"$pass_dir"'" -name "*.gpg" -printf "%P\n" 2>/dev/null \
+          | sed "s/\.gpg$//" \
+          | sed "s|/.*||" \
+          | sort -u \
+          | while read -r cat; do
+              if [[ -d "'"$pass_dir"'/$cat" ]]; then
+                  echo "📁 $cat/"
+              else
+                  echo "🔐 $cat"
+              fi
+          done
+    fi'
+
+    # Build initial display list
+    local -a entries=("✨ + Add New Password")
+    {
+        for entry in "${all_entries[@]}"; do
+            if [[ "$entry" == */* ]]; then
+                echo "${entry%%/*}"
+            else
+                echo "$entry"
+            fi
+        done | sort -u
+    } | while IFS= read -r item; do
+        if [[ "${is_category[$item]}" == "1" ]]; then
+            entries+=("📁 $item/")
+        else
+            entries+=("🔐 $item")
+        fi
+    done
+
+    # Create delete script (invoked from fzf binds) - isolated so confirm prompt runs in terminal
+    local delete_script=$(mktemp -t passfzf-delete-XXXXXX.sh)
+    cat > "$delete_script" <<'DELEOF'
+#!/bin/bash
+entry="$1"
+exec < /dev/tty
+echo "⚠️  DELETE CONFIRMATION"
+echo ""
+echo "You are about to DELETE:"
+echo "  $entry"
+echo ""
+echo "Type YES to confirm deletion, or anything else to cancel:"
+read -r confirm
+if [[ "$confirm" == "YES" ]]; then
+    echo "Deleting..."
+    if pass rm -f "$entry" &>/dev/null; then
+        echo "✅ Password deleted successfully"
+        command -v notify-send >/dev/null 2>&1 && notify-send "🗑️ Password Deleted" "$entry" -t 2000 -u low &>/dev/null &
+    else
+        echo "❌ Failed to delete: $entry"
+    fi
+else
+    echo "ℹ️ Deletion cancelled."
+fi
+read -k1 -s "key?Press any key to continue..."
+DELEOF
+    chmod +x "$delete_script"
+
+    # Launch fzf (header initially uses the counts we computed above; transform-header updates it after operations)
+    selection=$(
+        printf '%s\n' "${entries[@]}" | \
+        fzf --height ${calculated_height} \
+            --reverse \
+            --prompt='🔑 Pass> ' \
+            --header="$category_count categories • $total_entries total entries
+ENTER: copy • Ctrl+Y: copy+stay • Ctrl+E: edit • Ctrl+D: delete • + Add new" \
+            --preview='
+                case {} in
+                    *"Total:"*|*"categories • "*)
+                        echo "📊 Password Store Statistics"
+                        echo ""
+                        echo "This shows your complete password store overview."
+                        echo "You have organized your passwords into categories"
+                        echo "for better management and security."
+                        ;;
+                    *"Add New Password"*)
+                        echo "✨ Create a new password entry"
+                        ;;
+                    📁*)
+                        folder=$(echo {} | sed "s/📁 //" | sed "s|/$||")
+                        echo "📂 Contents of $folder/:"
+                        echo ""
+                        find "'"$pass_dir"'/$folder" -name "*.gpg" -printf "%P\n" 2>/dev/null | \
+                            sed "s/\.gpg$//" | sort | head -20 | sed "s/^/  🔐 /"
+                        count=$(find "'"$pass_dir"'/$folder" -maxdepth 1 -name "*.gpg" -type f 2>/dev/null | wc -l)
+                        [[ $count -gt 20 ]] && echo "  ... and $((count - 20)) more entries"
+                        ;;
+                    *)
+                        entry=$(echo {} | cut -d" " -f2-)
+                        pass show "$entry" 2>/dev/null | sed "1s/.*/🔐 [PASSWORD HIDDEN — Press ENTER to copy]/" | head -10
+                        ;;
+                esac' \
+            --preview-window='right:50%' \
+            --bind "change:reload($smart_reload_cmd)" \
+            --bind 'ctrl-y:execute-silent(
+                entry=$(echo {} | cut -d" " -f2-)
+                pass show -c "$entry" &>/dev/null && command -v notify-send >/dev/null 2>&1 && notify-send "🔐 Password Copied" "$entry" -t 1500 -u low &>/dev/null
+            )+refresh-preview+clear-screen' \
+            --bind 'ctrl-e:execute(
+                if [[ {} == 📁* || {} == *"Add New Password"* ]]; then
+                    echo "⚠️  Edit operation not available for folders"
+                    read -k1 -s "key?Press any key to continue..."
+                else
+                    entry=$(echo {} | cut -d" " -f2-)
+                    EDITOR=${EDITOR:-nvim} pass edit "$entry"
+                fi
+            )+reload('"$smart_reload_cmd"')+transform-header('"$dynamic_header_cmd"')' \
+            --bind "ctrl-n:execute-silent(echo '✨ + Add New Password')+accept" \
+            --bind 'ctrl-d:execute(
+                if [[ {} == 📁* || {} == *"Add New Password"* ]]; then
+                    echo "⚠️  Delete operation not available for folders"
+                    read -k1 -s "key?Press any key to continue..."
+                else
+                    entry=$(echo {} | cut -d" " -f2-)
+                    '"$delete_script"' "$entry"
+                fi
+            )+reload('"$smart_reload_cmd"')+transform-header('"$dynamic_header_cmd"')'
+    )
+
+    # Cleanup
+    rm -f "$delete_script"
+
+    [[ -z "$selection" ]] && { echo "👋 Goodbye!"; return 0; }
+    
+    # Handle "Add New Password"
+    if [[ "$selection" == *"Add New Password"* ]]; then
+        _passfzf_add_password "$pass_dir"
+        return $?
+    fi
+
+    # Handle folder selection (expand folder)
+    if [[ "$selection" == 📁* ]]; then
+        local folder=$(echo "$selection" | sed 's/📁 //' | sed 's|/$||')
+        _passfzf_browse_folder "$pass_dir" "$folder"
+        return $?
+    fi
+
+    # Handle normal entry - copy to clipboard (clean output)
+    local real_path="${selection#* }"
+    if pass show -c "$real_path" &>/dev/null; then
+        local display_name="${real_path##*/}"
+        local category="${real_path%/*}"
+        if [[ "$category" != "$real_path" ]]; then
+            echo "🔐 Password copied: $display_name (from $category)"
+        else
+            echo "🔐 Password copied: $display_name"
+        fi
+        command -v notify-send >/dev/null 2>&1 && {
+            notify-send "🔐 Password Copied" "$display_name" -t 2000 -u low &>/dev/null &
+            disown
+        }
+        echo "⏳ Will clear from clipboard in 45 seconds"
+    else
+        echo "❌ Failed to copy password: $real_path"
+    fi
+}
