@@ -1,23 +1,29 @@
-# passfzf.plugin.zsh
-# Modern zsh plugin for password store frontend
+#!/usr/bin/env zsh
+# passfzf.plugin.zsh - Main plugin file
+# A modern fuzzy finder frontend for the Unix standard password manager (pass)
+# Author: Dumidu Wijayasekara <dumidu.github@gmail.com>
 
-# Get plugin directory
-0=${(%):-%N}
-PASSFZF_PLUGIN_DIR=${0:A:h}
+# Plugin metadata
+PASSFZF_VERSION="1.0.0"
+
+# Get the directory where this plugin is located
+0="${${ZERO:-${0:#$ZSH_ARGZERO}}:-${(%):-%N}}"
+PASSFZF_PLUGIN_DIR="${0:A:h}"
 
 # Add functions directory to fpath for autoloading
-if [[ -d "$PASSFZF_PLUGIN_DIR/functions" ]]; then
-    fpath=("$PASSFZF_PLUGIN_DIR/functions" $fpath)
-fi
+fpath=("${PASSFZF_PLUGIN_DIR}/functions" $fpath)
 
 # Autoload all functions
-autoload -Uz passfzf _passfzf_add_password _passfzf_browse_folder _passfzf_add_folder_password
+autoload -Uz passfzf
+autoload -Uz _passfzf_add_password
+autoload -Uz _passfzf_add_folder_password  
+autoload -Uz _passfzf_browse_folder
 
-# Optional: Set up completions
-if [[ -d "$PASSFZF_PLUGIN_DIR/completions" ]]; then
-    fpath=("$PASSFZF_PLUGIN_DIR/completions" $fpath)
-    autoload -Uz compinit && compinit
+# Optional: Create aliases
+alias pf='passfzf'
+alias pass-fzf='passfzf'
+
+# Optional: Add completion
+if [[ -d "${PASSFZF_PLUGIN_DIR}/completions" ]]; then
+    fpath=("${PASSFZF_PLUGIN_DIR}/completions" $fpath)
 fi
-
-# Plugin metadata (optional but good practice)
-PASSFZF_VERSION="1.0.0"

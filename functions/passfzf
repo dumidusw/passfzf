@@ -1,5 +1,5 @@
+#!/usr/bin/env zsh
 # Main passfzf function
-# This file should be saved as functions/passfzf (no extension)
 
 passfzf() {
     # Clear screen for clean UI
@@ -137,10 +137,19 @@ ENTER: copy • Ctrl+Y: copy+stay • Ctrl+E: edit • Ctrl+D: delete • + Add 
                         folder=$(echo {} | sed "s/📁 //" | sed "s|/$||")
                         echo "📂 Contents of $folder/:"
                         echo ""
-                        find "'"$pass_dir"'/$folder" -name "*.gpg" -printf "%P\n" 2>/dev/null | \
-                            sed "s/\.gpg$//" | sort | head -20 | sed "s/^/  🔐 /"
+                        # Show subfolders first (direct children only)
+                        find "'"$pass_dir"'/$folder" -mindepth 1 -maxdepth 1 -type d -printf "%P/\n" 2>/dev/null | \
+                            sort | head -10 | sed "s/^/  📁 /"
+                        # Show password entries directly in this folder (not in subfolders)
+                        find "'"$pass_dir"'/$folder" -maxdepth 1 -name "*.gpg" -printf "%P\n" 2>/dev/null | \
+                            sed "s/\.gpg$//" | sort | head -15 | sed "s/^/  🔐 /"
+                        # Count totals
                         count=$(find "'"$pass_dir"'/$folder" -maxdepth 1 -name "*.gpg" -type f 2>/dev/null | wc -l)
-                        [[ $count -gt 20 ]] && echo "  ... and $((count - 20)) more entries"
+                        dir_count=$(find "'"$pass_dir"'/$folder" -mindepth 1 -maxdepth 1 -type d 2>/dev/null | wc -l)
+                        total_recursive=$(find "'"$pass_dir"'/$folder" -name "*.gpg" -type f 2>/dev/null | wc -l)
+                        [[ $count -gt 15 ]] && echo "  ... and $((count - 15)) more entries in this folder"
+                        [[ $dir_count -gt 10 ]] && echo "  ... and $((dir_count - 10)) more subfolders"
+                        [[ $total_recursive -gt $count ]] && echo "  📊 Total entries (including subfolders): $total_recursive"
                         ;;
                     *)
                         entry=$(echo {} | cut -d" " -f2-)
