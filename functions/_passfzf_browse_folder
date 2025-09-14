@@ -157,6 +157,15 @@ fi'
                 fi
             )+reload('"$folder_reload_cmd"')+transform-header('"$dynamic_folder_header_cmd"')' \
             --bind 'ctrl-n:execute-silent(echo "📁 ← Back to categories")+accept'
+			--bind 'ctrl-o:execute(
+				if [[ {} == 📁* || {} == *"Add New Password"* || {} == *"← Back"* ]]; then
+					echo "⚠️  URL open not available for this item"
+					read -k1 -s "key?Press any key to continue..."
+				else
+					entry=$(echo {} | cut -d" " -f2-)
+					_passfzf_open_url "$entry"
+				fi
+				)'
     )
 
     rm -f "$folder_delete_script"

@@ -18,6 +18,7 @@ autoload -Uz passfzf
 autoload -Uz _passfzf_add_password
 autoload -Uz _passfzf_add_folder_password  
 autoload -Uz _passfzf_browse_folder
+autoload -Uz _passfzf_open_url
 
 # Optional: Create aliases
 alias pf='passfzf'

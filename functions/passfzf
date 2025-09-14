@@ -181,6 +181,15 @@ ENTER: copy • Ctrl+Y: copy+stay • Ctrl+E: edit • Ctrl+D: delete • + Add 
                     '"$delete_script"' "$entry"
                 fi
             )+reload('"$smart_reload_cmd"')+transform-header('"$dynamic_header_cmd"')'
+			--bind 'ctrl-o:execute(
+				if [[ {} == 📁* || {} == *"Add New Password"* || {} == *"← Back"* ]]; then
+					echo "⚠️  URL open not available for this item"
+					read -k1 -s "key?Press any key to continue..."
+				else
+					entry=$(echo {} | cut -d" " -f2-)
+					_passfzf_open_url "$entry"
+				fi
+				)'
     )
 
     # Cleanup

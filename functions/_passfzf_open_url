@@ -1,0 +1,126 @@
+#!/usr/bin/env zsh
+# URL Opening Enhancement for passfzf
+
+# Helper function to extract and open URLs from password entries
+_passfzf_open_url() {
+    local entry="$1"
+    
+    # Get the full password entry content
+    local entry_content
+    entry_content=$(pass show "$entry" 2>/dev/null)
+    
+    if [[ -z "$entry_content" ]]; then
+        echo "❌ Could not read entry: $entry"
+        read -k1 -s "key?Press any key to continue..."
+        return 1
+    fi
+    
+    # Extract URLs using multiple patterns
+    local -a urls=()
+    
+    # Pattern 1: Look for lines starting with "url:", "URL:", "website:", etc.
+    while IFS= read -r line; do
+        if [[ "$line" =~ ^[[:space:]]*(url|URL|website|Website|site|Site)[[:space:]]*:[[:space:]]*(https?://[^[:space:]]+) ]]; then
+            urls+=("${match[2]}")
+        fi
+    done <<< "$entry_content"
+    
+    # Pattern 2: Look for any HTTP/HTTPS URLs in the content
+    while IFS= read -r line; do
+        # Extract all URLs from each line
+        local found_urls
+        found_urls=(${(@f)"$(echo "$line" | grep -oE 'https?://[^[:space:]]+')"})
+        urls+=($found_urls)
+    done <<< "$entry_content"
+    
+    # Remove duplicates and empty entries
+    urls=(${(u)urls[@]})  # (u) flag removes duplicates
+    urls=(${urls:#""})    # Remove empty strings
+    
+    if [[ ${#urls[@]} -eq 0 ]]; then
+        echo "🔍 No URLs found in entry: $entry"
+        echo ""
+        echo "Entry content preview:"
+        echo "$entry_content" | head -5 | sed 's/^/  /'
+        echo ""
+        echo "💡 URLs should be in format:"
+        echo "  url: https://example.com"
+        echo "  website: https://example.com"
+        echo "  Or just: https://example.com"
+        read -k1 -s "key?Press any key to continue..."
+        return 1
+    fi
+    
+    local selected_url
+    if [[ ${#urls[@]} -eq 1 ]]; then
+        # Only one URL found, open it directly
+        selected_url="${urls[1]}"
+        echo "🌐 Opening URL: $selected_url"
+    else
+        # Multiple URLs found, let user choose
+        echo "🌐 Multiple URLs found in $entry:"
+        echo ""
+        
+        selected_url=$(
+            printf '%s\n' "${urls[@]}" | \
+            fzf --height=10 \
+                --reverse \
+                --prompt='🌐 URL> ' \
+                --header='Select URL to open • ESC to cancel' \
+                --preview='echo "Will open: {}"' \
+                --preview-window='down:3'
+        )
+        
+        if [[ -z "$selected_url" ]]; then
+            echo "❌ No URL selected"
+            return 1
+        fi
+    fi
+    
+    # Detect available browser/URL opener
+    local opener=""
+    if command -v xdg-open >/dev/null 2>&1; then
+        opener="xdg-open"
+    elif command -v open >/dev/null 2>&1; then  # macOS
+        opener="open"
+    elif command -v firefox >/dev/null 2>&1; then
+        opener="firefox"
+    elif command -v google-chrome >/dev/null 2>&1; then
+        opener="google-chrome"
+    elif command -v chromium >/dev/null 2>&1; then
+        opener="chromium"
+    else
+        echo "❌ No suitable browser found"
+        echo "💡 Install xdg-open or set up a browser"
+        read -k1 -s "key?Press any key to continue..."
+        return 1
+    fi
+    
+    # Open the URL
+    echo "🚀 Opening $selected_url with $opener..."
+    if $opener "$selected_url" &>/dev/null & then
+        echo "✅ URL opened successfully"
+        command -v notify-send >/dev/null 2>&1 && {
+            notify-send "🌐 URL Opened" "$selected_url" -t 3000 -u low &>/dev/null &
+            disown
+        }
+    else
+        echo "❌ Failed to open URL"
+    fi
+    
+    read -k1 -s "key?Press any key to continue..."
+}
+
+# Add this bind to your main passfzf function:
+# --bind 'ctrl-o:execute(
+#     if [[ {} == 📁* || {} == *"Add New Password"* || {} == *"← Back"* ]]; then
+#         echo "⚠️  URL open not available for this item"
+#         read -k1 -s "key?Press any key to continue..."
+#     else
+#         entry=$(echo {} | cut -d" " -f2-)
+#         _passfzf_open_url "$entry"
+#     fi
+# )'
+
+# Updated header text should include:
+# "ENTER: copy • Ctrl+Y: copy+stay • Ctrl+E: edit • Ctrl+D: delete • Ctrl+O: open URL • + Add new"
