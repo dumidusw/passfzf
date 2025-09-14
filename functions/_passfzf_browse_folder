@@ -138,4 +138,57 @@ fi'
                 entry=$(echo {} | cut -d" " -f2-)
                 pass show -c "$entry" &>/dev/null && command -v notify-send >/dev/null 2>&1 && notify-send "🔐 Password Copied" "$entry" -t 1500 -u low &>/dev/null
             )+refresh-preview+clear-screen' \
-            --bind 'ctrl-e:execute
+            --bind 'ctrl-e:execute(
+                if [[ {} == 📁* || {} == *"Add New Password"* || {} == *"← Back"* ]]; then
+                    echo "⚠️  Edit operation not available for this item"
+                    read -k1 -s "key?Press any key to continue..."
+                else
+                    entry=$(echo {} | cut -d" " -f2-)
+                    EDITOR=${EDITOR:-nvim} pass edit "$entry"
+                fi
+            )+reload('"$folder_reload_cmd"')+transform-header('"$dynamic_folder_header_cmd"')' \
+            --bind 'ctrl-d:execute(
+                if [[ {} == 📁* || {} == *"Add New Password"* || {} == *"← Back"* ]]; then
+                    echo "⚠️  Delete operation not available for this item"
+                    read -k1 -s "key?Press any key to continue..."
+                else
+                    entry=$(echo {} | cut -d" " -f2-)
+                    '"$folder_delete_script"' "$entry"
+                fi
+            )+reload('"$folder_reload_cmd"')+transform-header('"$dynamic_folder_header_cmd"')' \
+            --bind 'ctrl-n:execute-silent(echo "📁 ← Back to categories")+accept'
+    )
+
+    rm -f "$folder_delete_script"
+
+    case "$folder_selection" in
+        *"← Back"*)
+            passfzf
+            ;;
+        *"Add New Password"*)
+            _passfzf_add_folder_password "$pass_dir" "$folder"
+            ;;
+        📁*)
+            # Handle subfolder selection - recursively browse the subfolder
+            local subfolder_path=$(echo "$folder_selection" | cut -d" " -f2- | sed 's|/$||')
+            _passfzf_browse_folder "$pass_dir" "$subfolder_path"
+            ;;
+        *)
+            if [[ -n "$folder_selection" ]]; then
+                local real_path="${folder_selection#* }"
+                if pass show -c "$real_path" &>/dev/null; then
+                    local display_name="${real_path##*/}"
+                    local parent_folder="${real_path%/*}"
+                    echo "🔐 Password copied: $display_name (from $parent_folder)"
+                    command -v notify-send >/dev/null 2>&1 && {
+                        notify-send "🔐 Password Copied" "$display_name" -t 2000 -u low &>/dev/null &
+                        disown
+                    }
+                    echo "⏳ Will clear from clipboard in 45 seconds"
+                else
+                    echo "❌ Failed to copy: $real_path"
+                fi
+            fi
+            ;;
+    esac
+}

@@ -1,19 +1,25 @@
-# completions/_passfzf
-
 #compdef passfzf
 
-local context state line
-
+# Completion for passfzf command
 _passfzf() {
-  _arguments -C \
-    '1: :->noargs' \
-    && return 0
+    local context state line
+    typeset -A opt_args
 
-  case $state in
-    noargs)
-      _message "🚀 Launch interactive fuzzy password manager (no arguments needed)"
-    ;;
-  esac
+    _arguments -C \
+        '(-h --help)'{-h,--help}'[Show help]' \
+        '(-v --version)'{-v,--version}'[Show version]' \
+        '*::entry:_passfzf_entries'
+}
+
+# Complete password entries from password store
+_passfzf_entries() {
+    local pass_dir="${PASSWORD_STORE_DIR:-$HOME/.password-store}"
+    local -a entries
+
+    if [[ -d "$pass_dir" ]]; then
+        entries=(${(f)"$(find "$pass_dir" -name "*.gpg" -printf '%P\n' 2>/dev/null | sed 's/\.gpg$//')"})
+        _describe 'password entries' entries
+    fi
 }
 
 _passfzf "$@"
