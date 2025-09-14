@@ -74,18 +74,20 @@ ENTER: copy • Ctrl+Y: copy+stay • Ctrl+E: edit • Ctrl+D: delete • + Add 
                     *"Add New Password"*)
                         echo "✨ Create a new password entry"
                         ;;
-						📁*)
-						folder=\$(echo {} | sed "s/📁 //" | sed "s|/\$||")
-						echo "📂 Contents of \$folder/:" 
-						echo ""
-						find "$pass_dir/\$folder" -name "*.gpg" -printf "%P\\\\n" 2>/dev/null | \\
-						sed "s/\\\\.gpg\\\$//" | sort | head -20 | sed "s/^/  🔐 /"
-						count=\$(find "$pass_dir/\$folder" -maxdepth 1 -name "*.gpg" -type f 2>/dev/null | wc -l)
-						if [ "\$count" -gt 20 ]; then
-							echo "  ... and \$((count - 20)) more entries"
-						fi
-						;;
-                        entry=$(echo {} | cut -d" " -f2-)
+                    📁*)
+                        folder=\$(echo {} | sed "s/📁 //" | sed "s|/\$||")
+                        echo "📂 Contents of \$folder/:" 
+                        echo ""
+                        find "'"$pass_dir"'/\$folder" -name "*.gpg" -printf "%P\\\\n" 2>/dev/null | \\
+                            sed "s/\\\\.gpg\\\$//" | sort | head -20 | sed "s/^/  🔐 /"
+                        count=\$(find "'"$pass_dir"'/\$folder" -maxdepth 1 -name "*.gpg" -type f 2>/dev/null | wc -l)
+                        if [ "\$count" -gt 20 ]; then
+                            remaining=\$((count - 20))
+                            echo "  ... and \$remaining more entries"
+                        fi
+                        ;;
+                    *)
+                        entry=\$(echo {} | cut -d" " -f2-)
                         pass show "\$entry" 2>/dev/null | sed "1s/.*/🔐 [PASSWORD HIDDEN — Press ENTER to copy]/" | head -10
                         ;;
                 esac' \
@@ -174,7 +176,7 @@ EOF
                         echo "🔙 Return to category view"
                         ;;
                     *)
-                        entry=$(echo {} | cut -d" " -f2-)
+                        entry=\$(echo {} | cut -d" " -f2-)
                         pass show "\$entry" 2>/dev/null | sed "1s/.*/🔐 [PASSWORD HIDDEN — Press ENTER to copy]/" | head -10
                         ;;
                 esac' \
