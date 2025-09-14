@@ -1,6 +1,7 @@
 #!/usr/bin/env zsh
 
-# Shared utilities for notifications, confirmations, validations, temp scripts
+# Shared utilities for passfzf
+# Notifications, confirmations, validations, temp scripts, small helpers
 
 _passfzf_notify() {
     local title="$1" msg="$2" duration="${3:-2000}"
@@ -36,10 +37,23 @@ _passfzf_validate_name() {
     return 0
 }
 
+# Create a small executable script file from provided content and return its path.
+# Usage: _passfzf_write_cmd_file "$content"
+_passfzf_write_cmd_file() {
+    local content="$1"
+    local tmp
+    tmp="$(mktemp -t passfzf-cmd-XXXXXX.sh)" || return 1
+    # Ensure we write content exactly as provided
+    printf '%s\n' "$content" > "$tmp"
+    chmod +x "$tmp"
+    echo "$tmp"
+}
+
 _passfzf_create_delete_script() {
-    local delete_script=$(mktemp -t passfzf-delete-XXXXXX.sh)
+    local delete_script
+    delete_script="$(mktemp -t passfzf-delete-XXXXXX.sh)" || return 1
     cat > "$delete_script" <<'DELEOF'
-#!/bin/bash
+#!/usr/bin/env bash
 entry="$1"
 exec < /dev/tty
 echo "⚠️  DELETE CONFIRMATION"
@@ -60,14 +74,16 @@ if [[ "$confirm" == "YES" ]]; then
 else
     echo "ℹ️ Deletion cancelled."
 fi
-read -k1 -s "key?Press any key to continue..."
+read -n1 -s -r -p "Press any key to continue..."
+echo
 DELEOF
     chmod +x "$delete_script"
     echo "$delete_script"
 }
 
 _passfzf_create_editor_tmpfile() {
-    local tmpfile=$(mktemp -t passfzf-new-XXXXXX)
+    local tmpfile
+    tmpfile="$(mktemp -t passfzf-new-XXXXXX)" || return 1
     cat > "$tmpfile" <<'EOF'
 # Enter password on first line. Lines after are optional metadata (notes, username, etc.)
 # DO NOT LEAVE FIRST LINE EMPTY.
