@@ -1,5 +1,5 @@
 #!/usr/bin/env zsh
-# Main passfzf function
+# Fixed passfzf function with proper Ctrl+O binding
 
 passfzf() {
     # Clear screen for clean UI
@@ -43,7 +43,7 @@ passfzf() {
     total_entries=$(find "'"$pass_dir"'" -name "*.gpg" -type f 2>/dev/null | wc -l)
     category_count=$(find "'"$pass_dir"'" -name "*.gpg" -printf "%P\n" 2>/dev/null | sed "s/\.gpg$//" | sed "s|/.*||" | sort -u | wc -l)
     echo "$category_count categories • $total_entries total entries
-ENTER: copy • Ctrl+Y: copy+stay • Ctrl+E: edit • Ctrl+D: delete • + Add new"'
+ENTER: copy • Ctrl+Y: copy+stay • Ctrl+E: edit • Ctrl+D: delete • Ctrl+O: open URL • + Add new"'
 
     # Smart reload (only the list, not the header)
     local smart_reload_cmd='
@@ -120,7 +120,7 @@ DELEOF
             --reverse \
             --prompt='🔑 Pass> ' \
             --header="$category_count categories • $total_entries total entries
-ENTER: copy • Ctrl+Y: copy+stay • Ctrl+E: edit • Ctrl+D: delete • + Add new" \
+ENTER: copy • Ctrl+Y: copy+stay • Ctrl+E: edit • Ctrl+D: delete • Ctrl+O: open URL • + Add new" \
             --preview='
                 case {} in
                     *"Total:"*|*"categories • "*)
@@ -180,16 +180,8 @@ ENTER: copy • Ctrl+Y: copy+stay • Ctrl+E: edit • Ctrl+D: delete • + Add 
                     entry=$(echo {} | cut -d" " -f2-)
                     '"$delete_script"' "$entry"
                 fi
-            )+reload('"$smart_reload_cmd"')+transform-header('"$dynamic_header_cmd"')'
-			--bind 'ctrl-o:execute(
-				if [[ {} == 📁* || {} == *"Add New Password"* || {} == *"← Back"* ]]; then
-					echo "⚠️  URL open not available for this item"
-					read -k1 -s "key?Press any key to continue..."
-				else
-					entry=$(echo {} | cut -d" " -f2-)
-					_passfzf_open_url "$entry"
-				fi
-				)'
+            )+reload('"$smart_reload_cmd"')+transform-header('"$dynamic_header_cmd"')' \
+            --bind 'ctrl-o:execute(if [[ {} == 📁* || {} == *"Add New Password"* || {} == *"← Back"* ]]; then echo "⚠️  URL open not available for this item"; read -k1 -s "key?Press any key to continue..."; else entry=$(echo {} | cut -d" " -f2-); _passfzf_open_url "$entry"; fi)'
     )
 
     # Cleanup
