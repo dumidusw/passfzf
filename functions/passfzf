@@ -1,6 +1,3 @@
-#!/usr/bin/env zsh
-# Fixed passfzf function using script-based URL opening
-
 passfzf() {
     # Clear screen for clean UI
     clear
@@ -38,111 +35,12 @@ passfzf() {
     [[ $calculated_height -lt $min_height ]] && calculated_height=$min_height
     [[ $calculated_height -gt $max_height ]] && calculated_height=$max_height
 
-    # Create URL opener script
-    local url_opener_script=$(mktemp -t passfzf-url-opener-XXXXXX.sh)
-    cat > "$url_opener_script" <<'URLEOF'
-#!/bin/bash
-entry="$1"
-exec < /dev/tty
-
-echo "🌐 Looking for URLs in: $entry"
-
-# Get password entry content
-content=$(pass show "$entry" 2>/dev/null)
-if [[ -z "$content" ]]; then
-    echo "❌ Could not read entry: $entry"
-    read -k1 -s "key?Press any key to continue..."
-    exit 1
-fi
-
-# Extract URLs - multiple patterns
-urls=()
-while IFS= read -r line; do
-    # Pattern 1: url: https://example.com
-    if [[ "$line" =~ ^[[:space:]]*(url|URL|website|Website|site|Site)[[:space:]]*:[[:space:]]*(https?://[^[:space:]]+) ]]; then
-        urls+=("${match[2]}")
-    fi
-    # Pattern 2: any https?:// URL
-    found_urls=($(echo "$line" | grep -oE 'https?://[^[:space:]]+' 2>/dev/null))
-    for url in "${found_urls[@]}"; do
-        [[ -n "$url" ]] && urls+=("$url")
-    done
-done <<< "$content"
-
-# Remove duplicates
-urls=($(printf '%s\n' "${urls[@]}" | sort -u | grep -v '^$'))
-
-if [[ ${#urls[@]} -eq 0 ]]; then
-    echo "🔍 No URLs found in entry: $entry"
-    echo ""
-    echo "Entry content preview:"
-    echo "$content" | head -5 | sed 's/^/  /'
-    echo ""
-    echo "💡 URLs should be in format:"
-    echo "  url: https://example.com"
-    echo "  website: https://example.com"  
-    echo "  Or just: https://example.com"
-    read -k1 -s "key?Press any key to continue..."
-    exit 1
-fi
-
-selected_url=""
-if [[ ${#urls[@]} -eq 1 ]]; then
-    selected_url="${urls[1]}"
-    echo "🌐 Found URL: $selected_url"
-else
-    echo "🌐 Multiple URLs found in $entry:"
-    for i in {1..${#urls[@]}}; do
-        echo "  $i) ${urls[$i]}"
-    done
-    echo -n "Select URL (1-${#urls[@]}): "
-    read -r choice
-    if [[ "$choice" =~ ^[0-9]+$ ]] && [[ $choice -ge 1 ]] && [[ $choice -le ${#urls[@]} ]]; then
-        selected_url="${urls[$choice]}"
-    else
-        echo "❌ Invalid selection"
-        read -k1 -s "key?Press any key to continue..."
-        exit 1
-    fi
-fi
-
-# Detect browser
-opener=""
-if command -v xdg-open >/dev/null 2>&1; then
-    opener="xdg-open"
-elif command -v open >/dev/null 2>&1; then
-    opener="open"
-elif command -v firefox >/dev/null 2>&1; then
-    opener="firefox"
-elif command -v google-chrome >/dev/null 2>&1; then
-    opener="google-chrome"
-elif command -v chromium >/dev/null 2>&1; then
-    opener="chromium"
-else
-    echo "❌ No suitable browser found"
-    echo "💡 Install xdg-open or a browser"
-    read -k1 -s "key?Press any key to continue..."
-    exit 1
-fi
-
-echo "🚀 Opening $selected_url with $opener..."
-if $opener "$selected_url" >/dev/null 2>&1 & then
-    echo "✅ URL opened successfully"
-    command -v notify-send >/dev/null 2>&1 && notify-send "🌐 URL Opened" "$selected_url" -t 3000 -u low >/dev/null 2>&1 &
-else
-    echo "❌ Failed to open URL"
-fi
-
-read -k1 -s "key?Press any key to continue..."
-URLEOF
-    chmod +x "$url_opener_script"
-
     # Dynamic header command (used with transform-header)
     local dynamic_header_cmd='
     total_entries=$(find "'"$pass_dir"'" -name "*.gpg" -type f 2>/dev/null | wc -l)
     category_count=$(find "'"$pass_dir"'" -name "*.gpg" -printf "%P\n" 2>/dev/null | sed "s/\.gpg$//" | sed "s|/.*||" | sort -u | wc -l)
     echo "$category_count categories • $total_entries total entries
-ENTER: copy • Ctrl+Y: copy+stay • Ctrl+E: edit • Ctrl+D: delete • Ctrl+O: open URL • + Add new"'
+ENTER: copy • Ctrl+Y: copy+stay • Ctrl+E: edit • Ctrl+D: delete • + Add new"'
 
     # Smart reload (only the list, not the header)
     local smart_reload_cmd='
@@ -219,7 +117,7 @@ DELEOF
             --reverse \
             --prompt='🔑 Pass> ' \
             --header="$category_count categories • $total_entries total entries
-ENTER: copy • Ctrl+Y: copy+stay • Ctrl+E: edit • Ctrl+D: delete • Ctrl+O: open URL • + Add new" \
+ENTER: copy • Ctrl+Y: copy+stay • Ctrl+E: edit • Ctrl+D: delete • + Add new" \
             --preview='
                 case {} in
                     *"Total:"*|*"categories • "*)
@@ -279,20 +177,20 @@ ENTER: copy • Ctrl+Y: copy+stay • Ctrl+E: edit • Ctrl+D: delete • Ctrl+O
                     entry=$(echo {} | cut -d" " -f2-)
                     '"$delete_script"' "$entry"
                 fi
-            )+reload('"$smart_reload_cmd"')+transform-header('"$dynamic_header_cmd"')' \
-            --bind 'ctrl-o:execute(
-                if [[ {} == 📁* || {} == *"Add New Password"* || {} == *"← Back"* ]]; then
-                    echo "⚠️  URL open not available for this item"
-                    read -k1 -s "key?Press any key to continue..."
-                else
-                    entry=$(echo {} | cut -d" " -f2-)
-                    '"$url_opener_script"' "$entry"
-                fi
-            )'
+            )+reload('"$smart_reload_cmd"')+transform-header('"$dynamic_header_cmd"')'
+			--bind 'ctrl-o:execute(
+				if [[ {} == 📁* || {} == *"Add New Password"* ]]; then
+					echo "⚠️  URL open not available for this item"
+					read -k1 -s "key?Press any key to continue..."
+				else
+					entry=$(echo {} | cut -d" " -f2-)
+					_passfzf_open_url "$entry"
+				fi
+			)+reload('"$smart_reload_cmd"')+refresh-preview'
     )
 
     # Cleanup
-    rm -f "$delete_script" "$url_opener_script"
+    rm -f "$delete_script"
 
     [[ -z "$selection" ]] && { echo "👋 Goodbye!"; return 0; }
     

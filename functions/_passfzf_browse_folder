@@ -1,4 +1,6 @@
-# Also fix the browse folder function
+#!/usr/bin/env zsh
+# Helper function: browse a specific folder (with subfolder support)
+
 _passfzf_browse_folder() {
     local pass_dir="$1"
     local folder="$2"
@@ -81,10 +83,10 @@ folder_count=$(find "'"$pass_dir/$folder"'" -maxdepth 1 -name "*.gpg" -type f 2>
 subfolder_count=$(find "'"$pass_dir/$folder"'" -mindepth 1 -maxdepth 1 -type d 2>/dev/null | wc -l)
 if [[ $subfolder_count -gt 0 ]]; then
     echo "📊 Folder: '"$folder"' — '"$folder_count"' entries, '"$subfolder_count"' subfolders
-ENTER: copy/open • Ctrl+Y: copy+stay • Ctrl+E: edit • Ctrl+D: delete • Ctrl+O: open URL • ← Back"
+ENTER: copy/open • Ctrl+Y: copy+stay • Ctrl+E: edit • Ctrl+D: delete • ← Back"
 else
     echo "📊 Folder: '"$folder"' — '"$folder_count"' entries
-ENTER: copy/open • Ctrl+Y: copy+stay • Ctrl+E: edit • Ctrl+D: delete • Ctrl+O: open URL • ← Back"
+ENTER: copy/open • Ctrl+Y: copy+stay • Ctrl+E: edit • Ctrl+D: delete • ← Back"
 fi'
 
     local folder_entry_count_actual=$((${#folder_entries[@]} - 2))
@@ -104,7 +106,7 @@ fi'
         fzf --height ${folder_height} \
             --reverse \
             --prompt="$prompt_text" \
-            --header='ENTER: copy/open • Ctrl+Y: copy+stay • Ctrl+E: edit • Ctrl+D: delete • Ctrl+O: open URL • ← Back' \
+            --header='ENTER: copy/open • Ctrl+Y: copy+stay • Ctrl+E: edit • Ctrl+D: delete • ← Back' \
             --preview='
                 case {} in
                     *"Add New Password"*)
@@ -154,8 +156,16 @@ fi'
                     '"$folder_delete_script"' "$entry"
                 fi
             )+reload('"$folder_reload_cmd"')+transform-header('"$dynamic_folder_header_cmd"')' \
-            --bind 'ctrl-n:execute-silent(echo "📁 ← Back to categories")+accept' \
-            --bind 'ctrl-o:execute(if [[ {} == 📁* || {} == *"Add New Password"* || {} == *"← Back"* ]]; then echo "⚠️  URL open not available for this item"; read -k1 -s "key?Press any key to continue..."; else entry=$(echo {} | cut -d" " -f2-); _passfzf_open_url "$entry"; fi)'
+            --bind 'ctrl-n:execute-silent(echo "📁 ← Back to categories")+accept'
+			--bind 'ctrl-o:execute(
+				if [[ {} == 📁* || {} == *"Add New Password"* || {} == *"← Back"* ]]; then
+					echo "⚠️  URL open not available for this item"
+					read -k1 -s "key?Press any key to continue..."
+				else
+					entry=$(echo {} | cut -d" " -f2-)
+					_passfzf_open_url "$entry"
+				fi
+				)+reload('"$folder_reload_cmd"')+refresh-preview'
     )
 
     rm -f "$folder_delete_script"
