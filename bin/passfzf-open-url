@@ -1,0 +1,14 @@
+#!/usr/bin/env zsh
+
+# Source the function since we're in a separate shell process
+# Use PASSFZF_PLUGIN_DIR if available, otherwise calculate it
+FUNCTION_FILE="${PASSFZF_PLUGIN_DIR:-${0:A:h:h}}/functions/_passfzf_open_url"
+source "$FUNCTION_FILE"
+
+entry="$1"
+clean_entry=$(printf "%s" "$entry" | sed -E "s/^'*//; s/'*$//; s/^[^[:alnum:]]+[[:space:]]*//")
+
+# Call the function
+if ! _passfzf_open_url "$clean_entry"; then
+    exit 1
+fi

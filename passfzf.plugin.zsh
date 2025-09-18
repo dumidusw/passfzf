@@ -8,7 +8,7 @@ PASSFZF_VERSION="1.0.0"
 
 # Get the directory where this plugin is located
 0="${${ZERO:-${0:#$ZSH_ARGZERO}}:-${(%):-%N}}"
-PASSFZF_PLUGIN_DIR="${0:A:h}"
+export PASSFZF_PLUGIN_DIR="${0:A:h}"  # Export so it's available to subprocesses
 
 # Add functions directory to fpath for autoloading
 fpath=("${PASSFZF_PLUGIN_DIR}/functions" $fpath)
@@ -23,6 +23,9 @@ autoload -Uz _passfzf_open_url
 # Optional: Create aliases
 alias pf='passfzf'
 alias pass-fzf='passfzf'
+
+# Add bin directory to PATH
+export PATH="${PASSFZF_PLUGIN_DIR}/bin:$PATH"
 
 # Optional: Add completion
 if [[ -d "${PASSFZF_PLUGIN_DIR}/completions" ]]; then
